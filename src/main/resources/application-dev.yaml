@@ -1,0 +1,16 @@
+# Local development overrides — active only with `dev` profile (SPRING_PROFILES_ACTIVE=dev).
+# Every value here is still overridable via the same env vars application.yaml uses; these are
+# just sane defaults for this machine's local Homebrew Postgres (no `postgres` role, trust auth,
+# no password) so `./mvnw spring-boot:run` / an IDE run configuration works with zero setup.
+# Never used in prod — application.yaml has no defaults for the security-sensitive keys below.
+spring:
+  datasource:
+    url: ${DB_ADMIN_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_admin_assisstant}
+    username: ${DB_ADMIN_DATASOURCE_USERNAME:dabi}
+    password: ${DB_ADMIN_DATASOURCE_PASSWORD:}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:okTxU0VP+84kEYosWRBu5xN1uACSciXNW5h6KACc5yM=}
+  security:
+    credential-encryption-key: ${CREDENTIAL_ENCRYPTION_KEY:OvOy7nJhrowo1/mF8wPpR1CCnvCSUKzTEsoC1S+vMiI=}
