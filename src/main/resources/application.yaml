@@ -1,3 +1,88 @@
 spring:
   application:
     name: db-admin-assisstant
+
+  datasource:
+    url: ${DB_ADMIN_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_admin_assisstant}
+    username: ${DB_ADMIN_DATASOURCE_USERNAME:postgres}
+    password: ${DB_ADMIN_DATASOURCE_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    out-of-order: false
+
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: gpt-4o
+        temperature: 0.2
+    chat:
+      client:
+        observations:
+          log-prompt: false
+          log-completion: false
+      observations:
+        log-prompt: false
+        log-completion: false
+        include-error-logging: true
+
+  mvc:
+    problemdetails:
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics,info
+  metrics:
+    tags:
+      application: db-admin-assisstant
+    distribution:
+      percentiles-histogram:
+        ai.prompt.latency: true
+
+logging:
+  level:
+    org.springframework.ai: INFO
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-token-expiry: 900000    # 15 minutes
+    refresh-token-expiry: 604800000 # 7 days
+
+  security:
+    # 32-byte AES-256 key, base64-encoded (e.g. `openssl rand -base64 32`). Required at startup —
+    # deliberately has no default so a forgotten override can never fall back to a known key.
+    credential-encryption-key: ${CREDENTIAL_ENCRYPTION_KEY:}
+
+  monitoring:
+    poll-interval-ms: 60000        # how often to poll monitored databases for metrics/slow queries
+    slow-query-threshold-ms: 500   # mean_exec_time above this is considered "slow"
+    retention-days: 30             # metric snapshot / slow query event retention
+
+  pricing:
+    # USD per 1M tokens: [input, output] — update when provider pricing changes
+    gpt-4o: [5.0, 15.0]
+    gpt-4o-mini: [0.15, 0.6]
