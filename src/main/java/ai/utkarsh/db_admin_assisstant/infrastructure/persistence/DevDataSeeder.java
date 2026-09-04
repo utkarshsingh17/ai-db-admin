@@ -12,27 +12,39 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Dev-only seed data — never via Flyway (see the flyway-migrations skill's own guidance). */
+/**
+ * Dev-only seed data — never via Flyway (see the flyway-migrations skill's own guidance). Ensures
+ * each account exists by email rather than gating on "table is empty", so it stays correct across
+ * restarts even after other admin users have been created through the app.
+ */
 @Component
 @Profile("dev")
 @RequiredArgsConstructor
 public class DevDataSeeder implements ApplicationRunner {
+
+    private static final String DEFAULT_PASSWORD = "root123";
 
     private final AdminUserJpaRepository adminUserRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(ApplicationArguments args) {
-        if (adminUserRepository.count() == 0) {
-            AdminUserEntity admin = new AdminUserEntity();
-            admin.setId(UUID.randomUUID());
-            admin.setEmail("admin@dev.local");
-            admin.setPasswordHash(passwordEncoder.encode("ChangeMe123!"));
-            admin.setRole("DB_ADMIN");
-            admin.setEnabled(true);
-            admin.setCreatedAt(Instant.now());
-            admin.setUpdatedAt(Instant.now());
-            adminUserRepository.save(admin);
+        ensureUser("admin@dev.com", "DB_ADMIN");
+        ensureUser("viewer@dev.com", "DB_VIEWER");
+    }
+
+    private void ensureUser(String email, String role) {
+        if (adminUserRepository.existsByEmail(email)) {
+            return;
         }
+        AdminUserEntity user = new AdminUserEntity();
+        user.setId(UUID.randomUUID());
+        user.setEmail(email);
+        user.setPasswordHash(passwordEncoder.encode(DEFAULT_PASSWORD));
+        user.setRole(role);
+        user.setEnabled(true);
+        user.setCreatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
+        adminUserRepository.save(user);
     }
 }
