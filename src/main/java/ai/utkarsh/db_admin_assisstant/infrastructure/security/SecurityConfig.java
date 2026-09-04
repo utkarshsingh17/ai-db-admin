@@ -2,6 +2,7 @@ package ai.utkarsh.db_admin_assisstant.infrastructure.security;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,9 +20,19 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 import static org.springframework.security.config.http.SessionCreationPolicy.STATELESS;
 
+/**
+ * The frontend is now a separately deployed app (its own origin, its own dev server/build) calling
+ * this backend as a remote API rather than being bundled and served from here — see
+ * {@code app.cors.allowed-origins}. This backend no longer serves any frontend routes/assets.
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -31,10 +42,14 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    @Value("${app.cors.allowed-origins}")
+    private List<String> allowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
@@ -42,9 +57,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/monitored-databases").hasRole("DB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/monitored-databases/*/disable").hasRole("DB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/monitored-databases/*/enable").hasRole("DB_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/monitored-databases/*").hasRole("DB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/recommendations/*/approve").hasRole("DB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/recommendations/*/reject").hasRole("DB_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/recommendations/*/apply").hasRole("DB_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/recommendations/manual").hasRole("DB_ADMIN")
+                        .requestMatchers("/api/v1/admin-users/**").hasRole("DB_ADMIN")
+                        .requestMatchers("/api/v1/databases/*/sensitive-columns/**").hasRole("DB_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(ex -> ex
@@ -61,6 +80,20 @@ public class SecurityConfig {
                                     {"success":false,"error":{"code":"FORBIDDEN","message":"Insufficient permissions"}}""");
                         }))
                 .build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        // Patterns (not setAllowedOrigins) so a dev default like "http://localhost:*" can match
+        // whatever port Vite actually picks — it falls back to the next free one if 5173 is taken.
+        configuration.setAllowedOriginPatterns(allowedOrigins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     @Bean

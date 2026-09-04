@@ -77,10 +77,20 @@ app:
     # deliberately has no default so a forgotten override can never fall back to a known key.
     credential-encryption-key: ${CREDENTIAL_ENCRYPTION_KEY:}
 
+  cors:
+    # Origin patterns allowed to call this API cross-origin (the frontend runs as its own separate
+    # app now). Empty by default — fails closed until explicitly configured — see application-dev.yaml
+    # for the local dev override. Comma-separated, "*" wildcards allowed, e.g.
+    # CORS_ALLOWED_ORIGINS=https://admin.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
   monitoring:
-    poll-interval-ms: 60000        # how often to poll monitored databases for metrics/slow queries
-    slow-query-threshold-ms: 500   # mean_exec_time above this is considered "slow"
+    slow-query-threshold-ms: 500   # mean_exec_time above this is considered "slow" (portal-run queries only)
     retention-days: 30             # metric snapshot / slow query event retention
+
+  query-editor:
+    max-rows: 500                  # cap on rows returned by an ad-hoc SELECT/EXPLAIN
+    timeout-seconds: 10            # JDBC query timeout for ad-hoc SELECT/EXPLAIN
 
   pricing:
     # USD per 1M tokens: [input, output] — update when provider pricing changes
