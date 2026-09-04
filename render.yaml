@@ -1,0 +1,43 @@
+databases:
+  - name: db-admin-assisstant-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: db-admin-assisstant
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      # No SPRING_PROFILES_ACTIVE here on purpose — the dev profile has convenience fallbacks for
+      # local Postgres and must never be active in a real deployment. See application.yaml.
+      - key: DB_ADMIN_DATASOURCE_HOST
+        fromDatabase:
+          name: db-admin-assisstant-db
+          property: host
+      - key: DB_ADMIN_DATASOURCE_PORT
+        fromDatabase:
+          name: db-admin-assisstant-db
+          property: port
+      - key: DB_ADMIN_DATASOURCE_NAME
+        fromDatabase:
+          name: db-admin-assisstant-db
+          property: database
+      - key: DB_ADMIN_DATASOURCE_USERNAME
+        fromDatabase:
+          name: db-admin-assisstant-db
+          property: user
+      - key: DB_ADMIN_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: db-admin-assisstant-db
+          property: password
+      - key: JWT_SECRET
+        sync: false
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false

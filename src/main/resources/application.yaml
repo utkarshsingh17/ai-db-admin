@@ -1,9 +1,15 @@
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: db-admin-assisstant
 
   datasource:
-    url: ${DB_ADMIN_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db_admin_assisstant}
+    # DB_ADMIN_DATASOURCE_URL wins if set; otherwise composed from the three HOST/PORT/NAME vars —
+    # lets a platform that hands out host/port/database separately (e.g. Render's managed Postgres)
+    # wire this without needing to construct a full JDBC URL string itself.
+    url: ${DB_ADMIN_DATASOURCE_URL:jdbc:postgresql://${DB_ADMIN_DATASOURCE_HOST:localhost}:${DB_ADMIN_DATASOURCE_PORT:5432}/${DB_ADMIN_DATASOURCE_NAME:db_admin_assisstant}}
     username: ${DB_ADMIN_DATASOURCE_USERNAME:postgres}
     password: ${DB_ADMIN_DATASOURCE_PASSWORD:postgres}
 
