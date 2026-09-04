@@ -9,4 +9,8 @@ import java.util.UUID;
 public interface AdminUserJpaRepository extends JpaRepository<AdminUserEntity, UUID> {
 
     Optional<AdminUserEntity> findByEmail(String email);
+
+    boolean existsByEmail(String email);
+
+    long countByRoleAndEnabledTrue(String role);
 }

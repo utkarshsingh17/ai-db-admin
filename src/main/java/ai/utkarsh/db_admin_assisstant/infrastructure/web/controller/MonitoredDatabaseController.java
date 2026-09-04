@@ -3,6 +3,7 @@ package ai.utkarsh.db_admin_assisstant.infrastructure.web.controller;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseEngine;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabase;
+import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.DeleteMonitoredDatabaseUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.ListMonitoredDatabasesUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.RegisterMonitoredDatabaseUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.SetMonitoredDatabaseEnabledUseCase;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +34,7 @@ public class MonitoredDatabaseController {
     private final RegisterMonitoredDatabaseUseCase registerUseCase;
     private final ListMonitoredDatabasesUseCase listUseCase;
     private final SetMonitoredDatabaseEnabledUseCase setEnabledUseCase;
+    private final DeleteMonitoredDatabaseUseCase deleteUseCase;
     private final CurrentAdminResolver currentAdminResolver;
 
     @PostMapping
@@ -61,5 +64,11 @@ public class MonitoredDatabaseController {
         MonitoredDatabase database = setEnabledUseCase.setEnabled(DatabaseId.of(id), true,
                 currentAdminResolver.resolveId(authentication));
         return ApiResponse.ok(MonitoredDatabaseResponse.from(database));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable String id, Authentication authentication) {
+        deleteUseCase.delete(DatabaseId.of(id), currentAdminResolver.resolveId(authentication));
+        return ApiResponse.ok(null);
     }
 }

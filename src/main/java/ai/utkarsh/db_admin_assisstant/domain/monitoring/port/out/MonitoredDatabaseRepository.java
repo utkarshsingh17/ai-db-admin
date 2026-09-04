@@ -17,4 +17,6 @@ public interface MonitoredDatabaseRepository {
     List<MonitoredDatabase> findAll();
 
     boolean existsByName(String name);
+
+    void deleteById(DatabaseId id);
 }

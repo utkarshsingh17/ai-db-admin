@@ -53,7 +53,9 @@ public class GlobalExceptionHandler {
 
     private HttpStatus statusFor(DomainException ex) {
         return switch (ex.getErrorCode()) {
-            case "RECOMMENDATION_NOT_FOUND", "MONITORED_DATABASE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "RECOMMENDATION_NOT_FOUND", "MONITORED_DATABASE_NOT_FOUND", "ADMIN_USER_NOT_FOUND",
+                    "SENSITIVE_COLUMN_NOT_FOUND" ->
+                HttpStatus.NOT_FOUND;
             case "INVALID_RECOMMENDATION_STATE" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };

@@ -23,4 +23,11 @@ public class CurrentAdminResolver {
                         () -> new IllegalStateException("Authenticated user not found: " + authentication.getName()));
         return user.getId();
     }
+
+    /** Whether the JWT's authorities include {@code ROLE_DB_ADMIN} — no DB lookup needed, the role
+     * is already embedded in the token. */
+    public boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_DB_ADMIN"));
+    }
 }

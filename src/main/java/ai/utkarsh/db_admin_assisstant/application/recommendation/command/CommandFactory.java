@@ -13,6 +13,9 @@ public final class CommandFactory {
             case CONFIG_CHANGE -> new UpdateConfigParameterCommand(recommendation.getProposedSql());
             case QUERY_REWRITE -> throw new IllegalStateException(
                     "QUERY_REWRITE recommendations are advisory only and cannot be auto-applied");
+            case MANUAL_SQL -> new ExecuteRawSqlCommand(recommendation.getProposedSql());
+            case AI_QUERY -> throw new IllegalStateException(
+                    "AI_QUERY recommendations must be applied via the AI query apply endpoint, not the generic apply endpoint");
         };
     }
 }

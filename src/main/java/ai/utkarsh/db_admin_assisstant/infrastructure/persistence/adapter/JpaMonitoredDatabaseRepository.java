@@ -48,4 +48,14 @@ public class JpaMonitoredDatabaseRepository implements MonitoredDatabaseReposito
     public boolean existsByName(String name) {
         return springDataRepository.existsByName(name);
     }
+
+    @Override
+    public void deleteById(DatabaseId id) {
+        // Flush so a foreign-key violation (existing metrics/recommendations/etc. referencing this
+        // database) surfaces synchronously here — JPA otherwise defers the DELETE until commit,
+        // which would escape the caller's try/catch and surface as an unhandled 500 instead of the
+        // clean, translated error the application service expects.
+        springDataRepository.deleteById(id.value());
+        springDataRepository.flush();
+    }
 }
