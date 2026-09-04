@@ -9,6 +9,7 @@ import ai.utkarsh.db_admin_assisstant.domain.adminuser.model.AdminUserNotFoundEx
 import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.in.ChangeAdminUserRoleUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.in.CreateAdminUserUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.in.ListAdminUsersUseCase;
+import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.in.RegisterAdminUserUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.in.SetAdminUserEnabledUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.out.AdminUserRepository;
 import ai.utkarsh.db_admin_assisstant.domain.audit.model.AuditAction;
@@ -23,7 +24,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AdminUserManagementService implements CreateAdminUserUseCase, ListAdminUsersUseCase,
-        ChangeAdminUserRoleUseCase, SetAdminUserEnabledUseCase {
+        ChangeAdminUserRoleUseCase, SetAdminUserEnabledUseCase, RegisterAdminUserUseCase {
 
     private final AdminUserRepository repository;
     private final PasswordEncoder passwordEncoder;
@@ -41,6 +42,28 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
         auditLogService.record("SYSTEM", AuditAction.ADMIN_USER_CREATED, "AdminUser",
                 saved.getId().value().toString(),
                 JsonPayload.of().put("email", saved.getEmail()).put("role", saved.getRole()).build(), null);
+        return saved;
+    }
+
+    /**
+     * Best-effort bootstrap check, not a hard guarantee — two concurrent registrations against an
+     * empty table could theoretically both become DB_ADMIN. Acceptable here: this is a single
+     * operator standing up their own instance, not a public multi-tenant signup flow.
+     */
+    @Override
+    @Transactional
+    public AdminUser register(String email, String rawPassword) {
+        if (repository.existsByEmail(email)) {
+            throw new IllegalArgumentException("An account with email '" + email + "' already exists");
+        }
+        AdminRole role = repository.existsAny() ? AdminRole.DB_VIEWER : AdminRole.DB_ADMIN;
+        AdminUser user = AdminUser.create(email, passwordEncoder.encode(rawPassword), role);
+        AdminUser saved = repository.save(user);
+        auditLogService.record("SYSTEM", AuditAction.ADMIN_USER_CREATED, "AdminUser",
+                saved.getId().value().toString(),
+                JsonPayload.of().put("email", saved.getEmail()).put("role", saved.getRole())
+                        .put("selfRegistered", true).build(),
+                null);
         return saved;
     }
 
