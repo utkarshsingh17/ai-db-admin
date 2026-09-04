@@ -58,10 +58,10 @@ class RecommendationApplyCoordinator {
         PerformanceRecommendation recommendation = recommendationRepository.findById(id)
                 .orElseThrow(() -> new RecommendationNotFoundException(id));
 
-        if (result.success()) {
-            recommendation.markApplied(adminUserId);
-        } else {
-            recommendation.markFailed(adminUserId, result.message());
+        switch (result.outcome()) {
+            case SUCCESS -> recommendation.markApplied(adminUserId);
+            case ALREADY_EXISTS -> recommendation.markAlreadyExists(adminUserId);
+            case FAILURE -> recommendation.markFailed(adminUserId, result.message());
         }
         PerformanceRecommendation saved = recommendationRepository.save(recommendation);
         // Pull events from `recommendation` (the mutated instance), not `saved` — see the identical

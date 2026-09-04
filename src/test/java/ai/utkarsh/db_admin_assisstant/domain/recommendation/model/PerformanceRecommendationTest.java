@@ -74,6 +74,21 @@ class PerformanceRecommendationTest {
     }
 
     @Test
+    void apply_lifecycle_alreadyExistsIsNotAFailure() {
+        PerformanceRecommendation recommendation = newDraft();
+        recommendation.submitForApproval();
+        recommendation.approve(UUID.randomUUID(), null);
+        recommendation.startApplying();
+
+        recommendation.markAlreadyExists(UUID.randomUUID());
+
+        assertThat(recommendation.getStatus()).isEqualTo(RecommendationStatus.ALREADY_EXISTS);
+        assertThat(recommendation.getStatus()).isNotEqualTo(RecommendationStatus.FAILED);
+        assertThat(recommendation.getFailureReason()).isNull();
+        assertThat(recommendation.getAppliedAt()).isNotNull();
+    }
+
+    @Test
     void reject_whenApproved_throws() {
         PerformanceRecommendation recommendation = newDraft();
         recommendation.submitForApproval();

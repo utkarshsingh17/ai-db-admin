@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
 
 /**
  * The only place in the system that actually runs a change against a monitored database — and only
@@ -32,8 +33,20 @@ public class JdbcDatabaseChangeExecutor implements DatabaseChangeExecutorPort {
             log.info("Applied database change on {}: {}", target.getName(), sql.statement());
             return ExecutionResult.ok();
         } catch (SQLException e) {
+            if (isAlreadyExists(e)) {
+                log.info("Database change on {} was a no-op — target already exists: {}", target.getName(),
+                        e.getMessage());
+                return ExecutionResult.alreadyExists(e.getMessage());
+            }
             log.error("Failed to apply database change on {}: {}", target.getName(), sql.statement(), e);
             return ExecutionResult.failure(e.getMessage());
         }
+    }
+
+    /** PostgreSQL is consistent about phrasing this across every kind of duplicate-object error
+     * (relation, index, constraint, column, ...), regardless of the exact SQLSTATE — simpler and
+     * more robust than enumerating every "already exists" SQLSTATE (42P07, 42710, 42P06, ...). */
+    private boolean isAlreadyExists(SQLException e) {
+        return e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("already exists");
     }
 }

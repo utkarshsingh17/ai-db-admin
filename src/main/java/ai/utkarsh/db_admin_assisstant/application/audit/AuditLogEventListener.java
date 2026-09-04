@@ -1,6 +1,7 @@
 package ai.utkarsh.db_admin_assisstant.application.audit;
 
 import ai.utkarsh.db_admin_assisstant.domain.audit.model.AuditAction;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationAlreadyExistsEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationAppliedEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationApplyFailedEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationApprovedEvent;
@@ -51,6 +52,12 @@ public class AuditLogEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRecommendationApplied(RecommendationAppliedEvent event) {
         auditLogService.record(event.appliedByAdminUserId().toString(), AuditAction.RECOMMENDATION_APPLIED,
+                ENTITY_TYPE, event.recommendationId().value().toString(), null, null);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onRecommendationAlreadyExists(RecommendationAlreadyExistsEvent event) {
+        auditLogService.record(event.appliedByAdminUserId().toString(), AuditAction.RECOMMENDATION_ALREADY_EXISTS,
                 ENTITY_TYPE, event.recommendationId().value().toString(), null, null);
     }
 
