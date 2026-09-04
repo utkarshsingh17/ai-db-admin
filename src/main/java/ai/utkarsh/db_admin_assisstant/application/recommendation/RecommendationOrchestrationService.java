@@ -11,6 +11,7 @@ import ai.utkarsh.db_admin_assisstant.domain.audit.model.AuditAction;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabase;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabaseNotFoundException;
+import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.QueryFingerprint;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.SlowQueryEvent;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.SlowQueryEventId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.out.MonitoredDatabaseRepository;
@@ -44,6 +45,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -199,10 +201,13 @@ public class RecommendationOrchestrationService implements RequestRecommendation
     /**
      * Best-effort follow-up for a query actually run through the portal (this AI_QUERY apply path, or
      * the SQL editor's manual "Write SQL" execution via {@code QueryExecutionService}): if it was
-     * slow, reuse the exact AI-drafting pipeline built for {@link #requestForSlowQuery} to draft an
-     * independent optimization recommendation. Failures here (including "no AI provider configured")
-     * must never fail the query execution itself — the query already ran and its results are already
-     * on their way back to the caller; this is purely additive advice.
+     * slow, record it as a {@link SlowQueryEvent} (so it shows up in the existing Slow Queries list —
+     * the only remaining producer of these now that background polling is gone) and reuse the exact
+     * AI-drafting pipeline built for {@link #requestForSlowQuery} to draft an independent optimization
+     * recommendation. AI drafting failures (including "no AI provider configured") must never fail
+     * the query execution itself — the query already ran and its results are already on their way
+     * back to the caller — but the captured event is saved regardless, so slowness is visible even
+     * when drafting fails.
      */
     @Override
     @Transactional
@@ -210,12 +215,16 @@ public class RecommendationOrchestrationService implements RequestRecommendation
         if (result.executionTimeMs() < slowQueryThresholdMs) {
             return null;
         }
+        SlowQueryEvent event = SlowQueryEvent.capture(target.getId(), fingerprintOf(sql), sql, 1,
+                result.executionTimeMs(), result.executionTimeMs(), (long) result.rowCount(), Instant.now());
+        SlowQueryEvent savedEvent = slowQueryEventRepository.save(event);
+
         try {
             SlowQueryAnalysisInput input = new SlowQueryAnalysisInput(target.getName(), sql, 1,
                     result.executionTimeMs(), result.executionTimeMs());
             AiRecommendationDraft draft = aiRecommendationPort.draftRecommendation(input);
-            PerformanceRecommendation optimization = recommendationFactory.createFromAiDraft(target.getId(), null,
-                    draft);
+            PerformanceRecommendation optimization = recommendationFactory.createFromAiDraft(target.getId(),
+                    savedEvent.getId(), draft);
             PerformanceRecommendation saved = recommendationRepository.save(optimization);
             publish(optimization);
             return saved.getId();
@@ -224,6 +233,14 @@ public class RecommendationOrchestrationService implements RequestRecommendation
                     e.getMessage());
             return null;
         }
+    }
+
+    /** No {@code pg_stat_statements} queryid available for an ad hoc portal query, so the query text
+     * itself (whitespace-normalized) stands in as the fingerprint — good enough to tell distinct
+     * slow queries apart in the list, which is all this identity is used for. */
+    private QueryFingerprint fingerprintOf(String sql) {
+        String normalized = sql.strip().replaceAll("\\s+", " ");
+        return new QueryFingerprint(Integer.toHexString(normalized.hashCode()));
     }
 
     @Override
