@@ -19,5 +19,9 @@ public interface AdminUserRepository {
 
     boolean existsByEmail(String email);
 
+    /** Whether any admin user exists at all — used to decide whether a self-registration is the
+     * very first account (and so becomes DB_ADMIN) or a later one (DB_VIEWER by default). */
+    boolean existsAny();
+
     long countByRoleAndEnabledTrue(AdminRole role);
 }
