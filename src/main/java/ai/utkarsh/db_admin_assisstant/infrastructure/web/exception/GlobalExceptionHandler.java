@@ -1,6 +1,7 @@
 package ai.utkarsh.db_admin_assisstant.infrastructure.web.exception;
 
 import ai.utkarsh.db_admin_assisstant.domain.shared.DomainException;
+import ai.utkarsh.db_admin_assisstant.infrastructure.security.InvalidRefreshTokenException;
 import ai.utkarsh.db_admin_assisstant.infrastructure.web.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ApiResponse.error("INVALID_CREDENTIALS", "Invalid email or password"));
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("SESSION_EXPIRED", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
