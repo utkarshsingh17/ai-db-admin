@@ -2,6 +2,7 @@ package ai.utkarsh.db_admin_assisstant.domain.recommendation.model;
 
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.SlowQueryEventId;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationAlreadyExistsEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationAppliedEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationApplyFailedEvent;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.event.RecommendationApprovedEvent;
@@ -122,6 +123,16 @@ public class PerformanceRecommendation {
         this.appliedAt = Instant.now();
         touch();
         domainEvents.add(new RecommendationAppliedEvent(id, appliedByAdminUserId, Instant.now()));
+    }
+
+    /** The DDL's target (index, table, etc.) already existed — the desired end state is already
+     * true, so this is a resolved outcome, not a failure. */
+    public void markAlreadyExists(UUID appliedByAdminUserId) {
+        requireStatus(RecommendationStatus.APPLYING, "mark already exists");
+        this.status = RecommendationStatus.ALREADY_EXISTS;
+        this.appliedAt = Instant.now();
+        touch();
+        domainEvents.add(new RecommendationAlreadyExistsEvent(id, appliedByAdminUserId, Instant.now()));
     }
 
     public void markFailed(UUID appliedByAdminUserId, String reason) {

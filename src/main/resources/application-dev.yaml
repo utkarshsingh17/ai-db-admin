@@ -14,3 +14,7 @@ app:
     secret: ${JWT_SECRET:okTxU0VP+84kEYosWRBu5xN1uACSciXNW5h6KACc5yM=}
   security:
     credential-encryption-key: ${CREDENTIAL_ENCRYPTION_KEY:OvOy7nJhrowo1/mF8wPpR1CCnvCSUKzTEsoC1S+vMiI=}
+  cors:
+    # Wildcard port: Vite falls back to the next free port if 5173/4173 are already taken by
+    # another project's dev server.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*}

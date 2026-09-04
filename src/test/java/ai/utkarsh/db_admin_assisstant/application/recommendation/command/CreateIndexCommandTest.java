@@ -31,4 +31,13 @@ class CreateIndexCommandTest {
 
         assertThatThrownBy(() -> new CreateIndexCommand(sql)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void acceptsATrailingSemicolon() {
+        // AI-drafted and admin-typed SQL routinely ends with one — that alone isn't a second
+        // statement, only a semicolon followed by more content is.
+        Sql sql = new Sql("CREATE INDEX CONCURRENTLY idx_orders_customer_id ON orders(customer_id);");
+
+        assertThatCode(() -> new CreateIndexCommand(sql)).doesNotThrowAnyException();
+    }
 }

@@ -8,14 +8,26 @@ public interface DatabaseChangeExecutorPort {
 
     ExecutionResult execute(MonitoredDatabase target, Sql sql);
 
-    record ExecutionResult(boolean success, String message) {
+    /** {@code ALREADY_EXISTS} covers a DDL target (index, table, etc.) that already existed — the
+     * desired end state is already true, so it's a resolved outcome, not a failure. */
+    record ExecutionResult(Outcome outcome, String message) {
+
+        public enum Outcome {
+            SUCCESS,
+            ALREADY_EXISTS,
+            FAILURE
+        }
 
         public static ExecutionResult ok() {
-            return new ExecutionResult(true, null);
+            return new ExecutionResult(Outcome.SUCCESS, null);
+        }
+
+        public static ExecutionResult alreadyExists(String message) {
+            return new ExecutionResult(Outcome.ALREADY_EXISTS, message);
         }
 
         public static ExecutionResult failure(String message) {
-            return new ExecutionResult(false, message);
+            return new ExecutionResult(Outcome.FAILURE, message);
         }
     }
 }

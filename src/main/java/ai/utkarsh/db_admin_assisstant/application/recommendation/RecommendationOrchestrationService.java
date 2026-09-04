@@ -1,23 +1,36 @@
 package ai.utkarsh.db_admin_assisstant.application.recommendation;
 
+import ai.utkarsh.db_admin_assisstant.application.audit.AuditLogService;
+import ai.utkarsh.db_admin_assisstant.application.audit.JsonPayload;
+import ai.utkarsh.db_admin_assisstant.application.masking.QueryResultMasker;
 import ai.utkarsh.db_admin_assisstant.application.recommendation.command.CommandFactory;
 import ai.utkarsh.db_admin_assisstant.application.recommendation.command.CommandInvoker;
 import ai.utkarsh.db_admin_assisstant.application.recommendation.command.DatabaseChangeCommand;
+import ai.utkarsh.db_admin_assisstant.application.shared.SqlStatementClassifier;
+import ai.utkarsh.db_admin_assisstant.domain.audit.model.AuditAction;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabase;
+import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabaseNotFoundException;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.SlowQueryEvent;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.SlowQueryEventId;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.out.MonitoredDatabaseRepository;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.out.SlowQueryEventRepository;
+import ai.utkarsh.db_admin_assisstant.domain.query.model.QueryResult;
+import ai.utkarsh.db_admin_assisstant.domain.query.port.out.ReadOnlyQueryExecutorPort;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.PerformanceRecommendation;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.RecommendationId;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.RecommendationNotFoundException;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.RecommendationStatus;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.RecommendationType;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.model.Sql;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.ApplyAiQueryUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.ApplyRecommendationUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.ApproveRecommendationUseCase;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.DraftOptimizationForQueryUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.ListRecommendationsUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.RejectRecommendationUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.RequestRecommendationUseCase;
+import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.in.SubmitManualSqlUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.out.AiRecommendationDraft;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.out.AiRecommendationPort;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.out.DatabaseChangeExecutorPort;
@@ -25,6 +38,8 @@ import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.out.Performance
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.port.out.SlowQueryAnalysisInput;
 import ai.utkarsh.db_admin_assisstant.domain.recommendation.service.RecommendationFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,9 +54,10 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecommendationOrchestrationService implements RequestRecommendationUseCase,
         ApproveRecommendationUseCase, RejectRecommendationUseCase, ApplyRecommendationUseCase,
-        ListRecommendationsUseCase {
+        ListRecommendationsUseCase, SubmitManualSqlUseCase, ApplyAiQueryUseCase, DraftOptimizationForQueryUseCase {
 
     private final PerformanceRecommendationRepository recommendationRepository;
     private final MonitoredDatabaseRepository monitoredDatabaseRepository;
@@ -50,7 +66,13 @@ public class RecommendationOrchestrationService implements RequestRecommendation
     private final RecommendationFactory recommendationFactory;
     private final CommandInvoker commandInvoker;
     private final RecommendationApplyCoordinator applyCoordinator;
+    private final ReadOnlyQueryExecutorPort readOnlyQueryExecutorPort;
+    private final QueryResultMasker queryResultMasker;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogService auditLogService;
+
+    @Value("${app.monitoring.slow-query-threshold-ms}")
+    private double slowQueryThresholdMs;
 
     @Override
     @Transactional
@@ -109,6 +131,99 @@ public class RecommendationOrchestrationService implements RequestRecommendation
         DatabaseChangeExecutorPort.ExecutionResult result = commandInvoker.invoke(command, context.target());
 
         return applyCoordinator.completeApplying(id, adminUserId, result);
+    }
+
+    /**
+     * Manually-submitted counterpart to {@link #requestForSlowQuery}: skips the AI drafting path
+     * entirely (no {@link RecommendationFactory} involved — that's an Anti-Corruption Layer
+     * specifically for AI output) and constructs the aggregate directly. The domain events the
+     * aggregate collects are drained but deliberately *not* published — {@code AuditLogEventListener}
+     * hardcodes the "SYSTEM" actor for AI-drafted creations, which would misattribute a manual
+     * submission, so the audit entry is written directly here with the real submitting admin.
+     */
+    @Override
+    @Transactional
+    public PerformanceRecommendation submitManualSql(SubmitManualSqlCommand command) {
+        MonitoredDatabase database = monitoredDatabaseRepository.findById(command.databaseId())
+                .orElseThrow(() -> new MonitoredDatabaseNotFoundException(command.databaseId()));
+        SqlStatementClassifier.requireWrite(command.proposedSql());
+        SqlStatementClassifier.requireSingleStatement(command.proposedSql());
+
+        PerformanceRecommendation recommendation = PerformanceRecommendation.draft(database.getId(), null,
+                RecommendationType.MANUAL_SQL, command.riskLevel(), command.title(), command.explanation(),
+                new Sql(command.proposedSql()), command.targetObject());
+        recommendation.submitForApproval();
+        recommendation.pullDomainEvents();
+
+        PerformanceRecommendation saved = recommendationRepository.save(recommendation);
+        auditLogService.record(command.submittedByAdminId().toString(), AuditAction.RECOMMENDATION_CREATED,
+                "PerformanceRecommendation", saved.getId().value().toString(),
+                JsonPayload.of().put("databaseId", database.getId().value()).put("type", "MANUAL_SQL").build(),
+                null);
+        return saved;
+    }
+
+    /**
+     * Executes an approved {@code AI_QUERY} recommendation's SELECT and returns the (masked) result
+     * — the counterpart to the DDL {@link #apply} above, but for a query that returns data instead
+     * of a boolean success/failure. Deliberately not routed through {@link CommandFactory}/{@link
+     * RecommendationApplyCoordinator}: those exist to guard {@code CREATE INDEX CONCURRENTLY}'s
+     * self-deadlock risk, which a plain {@code SELECT} against a *different* JDBC connection never
+     * has, so one ordinary transaction is enough here.
+     */
+    @Override
+    @Transactional
+    public AiQueryApplyResult apply(RecommendationId id, UUID adminUserId, boolean revealPii) {
+        PerformanceRecommendation recommendation = getById(id);
+        if (recommendation.getType() != RecommendationType.AI_QUERY) {
+            throw new IllegalArgumentException("Recommendation " + id.value() + " is not an AI_QUERY recommendation");
+        }
+        MonitoredDatabase target = monitoredDatabaseRepository.findById(recommendation.getDatabaseId())
+                .orElseThrow(() -> new MonitoredDatabaseNotFoundException(recommendation.getDatabaseId()));
+
+        recommendation.startApplying();
+        recommendationRepository.save(recommendation);
+
+        QueryResult rawResult = readOnlyQueryExecutorPort.execute(target, recommendation.getProposedSql().statement());
+        QueryResult maskedResult = queryResultMasker.mask(recommendation.getDatabaseId(), rawResult, revealPii);
+
+        recommendation.markApplied(adminUserId);
+        PerformanceRecommendation saved = recommendationRepository.save(recommendation);
+        publish(recommendation);
+
+        RecommendationId optimizationId = draftIfSlow(target, recommendation.getProposedSql().statement(),
+                rawResult);
+        return new AiQueryApplyResult(saved, maskedResult, optimizationId);
+    }
+
+    /**
+     * Best-effort follow-up for a query actually run through the portal (this AI_QUERY apply path, or
+     * the SQL editor's manual "Write SQL" execution via {@code QueryExecutionService}): if it was
+     * slow, reuse the exact AI-drafting pipeline built for {@link #requestForSlowQuery} to draft an
+     * independent optimization recommendation. Failures here (including "no AI provider configured")
+     * must never fail the query execution itself — the query already ran and its results are already
+     * on their way back to the caller; this is purely additive advice.
+     */
+    @Override
+    @Transactional
+    public RecommendationId draftIfSlow(MonitoredDatabase target, String sql, QueryResult result) {
+        if (result.executionTimeMs() < slowQueryThresholdMs) {
+            return null;
+        }
+        try {
+            SlowQueryAnalysisInput input = new SlowQueryAnalysisInput(target.getName(), sql, 1,
+                    result.executionTimeMs(), result.executionTimeMs());
+            AiRecommendationDraft draft = aiRecommendationPort.draftRecommendation(input);
+            PerformanceRecommendation optimization = recommendationFactory.createFromAiDraft(target.getId(), null,
+                    draft);
+            PerformanceRecommendation saved = recommendationRepository.save(optimization);
+            publish(optimization);
+            return saved.getId();
+        } catch (RuntimeException e) {
+            log.warn("Optimization recommendation drafting skipped for ad hoc query on {}: {}", target.getName(),
+                    e.getMessage());
+            return null;
+        }
     }
 
     @Override

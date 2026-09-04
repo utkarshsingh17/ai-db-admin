@@ -1,29 +1,28 @@
 package ai.utkarsh.db_admin_assisstant.infrastructure.scheduling;
 
 import ai.utkarsh.db_admin_assisstant.application.monitoring.RetentionCleanupService;
-import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.CollectMetricsUseCase;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/**
+ * No periodic database polling here on purpose — metrics/slow-query analysis used to come from a
+ * background scan of every monitored database ({@code pg_stat_statements}, {@code pg_stat_activity},
+ * etc.), which meant the AI could "see" and react to traffic that never went through this app.
+ * Recommendations are now drafted only for queries actually run through the portal — see
+ * {@code DraftOptimizationForQueryUseCase}. Retention cleanup is unrelated housekeeping (purges the
+ * app's own old records) and stays scheduled.
+ */
 @Component
 public class MonitoringScheduler {
 
-    private final CollectMetricsUseCase collectMetricsUseCase;
     private final RetentionCleanupService retentionCleanupService;
     private final int retentionDays;
 
-    public MonitoringScheduler(CollectMetricsUseCase collectMetricsUseCase,
-            RetentionCleanupService retentionCleanupService,
+    public MonitoringScheduler(RetentionCleanupService retentionCleanupService,
             @Value("${app.monitoring.retention-days}") int retentionDays) {
-        this.collectMetricsUseCase = collectMetricsUseCase;
         this.retentionCleanupService = retentionCleanupService;
         this.retentionDays = retentionDays;
-    }
-
-    @Scheduled(fixedDelayString = "${app.monitoring.poll-interval-ms}")
-    public void pollMonitoredDatabases() {
-        collectMetricsUseCase.collectAll();
     }
 
     @Scheduled(cron = "0 0 3 * * *")
