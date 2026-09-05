@@ -39,17 +39,19 @@ public class MonitoredDatabaseController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<MonitoredDatabaseResponse>> register(
-            @Valid @RequestBody RegisterDatabaseRequest request) {
+            @Valid @RequestBody RegisterDatabaseRequest request, Authentication authentication) {
         MonitoredDatabase database = registerUseCase.register(
                 new RegisterMonitoredDatabaseUseCase.RegisterDatabaseCommand(request.name(), DatabaseEngine.POSTGRESQL,
-                        request.jdbcUrl(), request.username(), request.password()));
+                        request.jdbcUrl(), request.username(), request.password(),
+                        currentAdminResolver.resolveId(authentication)));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(MonitoredDatabaseResponse.from(database)));
     }
 
     @GetMapping
-    public ApiResponse<List<MonitoredDatabaseResponse>> list() {
-        return ApiResponse.ok(listUseCase.listAll().stream().map(MonitoredDatabaseResponse::from).toList());
+    public ApiResponse<List<MonitoredDatabaseResponse>> list(Authentication authentication) {
+        return ApiResponse.ok(listUseCase.listVisibleTo(currentAdminResolver.resolveId(authentication)).stream()
+                .map(MonitoredDatabaseResponse::from).toList());
     }
 
     @PostMapping("/{id}/disable")

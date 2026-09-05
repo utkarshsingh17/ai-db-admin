@@ -38,9 +38,11 @@ public class AdminUserController {
     private final CurrentAdminResolver currentAdminResolver;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<AdminUserResponse>> create(@Valid @RequestBody CreateAdminUserRequest request) {
+    public ResponseEntity<ApiResponse<AdminUserResponse>> create(@Valid @RequestBody CreateAdminUserRequest request,
+            Authentication authentication) {
         AdminUser user = createUseCase.create(new CreateAdminUserUseCase.CreateAdminUserCommand(request.email(),
-                request.password(), AdminRole.valueOf(request.role())));
+                request.password(), AdminRole.valueOf(request.role()),
+                currentAdminResolver.resolveId(authentication)));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(AdminUserResponse.from(user)));
     }
 

@@ -2,6 +2,7 @@ package ai.utkarsh.db_admin_assisstant.domain.monitoring.model;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Aggregate root for a registered database target. The password is held in plain form in memory —
@@ -17,11 +18,15 @@ public class MonitoredDatabase {
     private String username;
     private String password;
     private boolean enabled;
+    /** Raw UUID, not AdminUserId — this context doesn't own the admin-user aggregate, it just
+     * remembers which one registered this database (same convention as the UUID actor ids on
+     * recommendation domain events). Drives per-admin/per-viewer visibility scoping. */
+    private final UUID ownerAdminId;
     private final Instant createdAt;
     private Instant updatedAt;
 
     private MonitoredDatabase(DatabaseId id, String name, DatabaseEngine engine, String jdbcUrl, String username,
-            String password, boolean enabled, Instant createdAt, Instant updatedAt) {
+            String password, boolean enabled, UUID ownerAdminId, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.name = name;
         this.engine = engine;
@@ -29,25 +34,29 @@ public class MonitoredDatabase {
         this.username = username;
         this.password = password;
         this.enabled = enabled;
+        this.ownerAdminId = ownerAdminId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
     public static MonitoredDatabase register(String name, DatabaseEngine engine, String jdbcUrl, String username,
-            String password) {
+            String password, UUID ownerAdminId) {
         Objects.requireNonNull(name, "name must not be null");
         Objects.requireNonNull(engine, "engine must not be null");
         Objects.requireNonNull(jdbcUrl, "jdbcUrl must not be null");
         Objects.requireNonNull(username, "username must not be null");
         Objects.requireNonNull(password, "password must not be null");
+        Objects.requireNonNull(ownerAdminId, "ownerAdminId must not be null");
         Instant now = Instant.now();
-        return new MonitoredDatabase(DatabaseId.generate(), name, engine, jdbcUrl, username, password, true, now,
-                now);
+        return new MonitoredDatabase(DatabaseId.generate(), name, engine, jdbcUrl, username, password, true,
+                ownerAdminId, now, now);
     }
 
     public static MonitoredDatabase reconstitute(DatabaseId id, String name, DatabaseEngine engine, String jdbcUrl,
-            String username, String password, boolean enabled, Instant createdAt, Instant updatedAt) {
-        return new MonitoredDatabase(id, name, engine, jdbcUrl, username, password, enabled, createdAt, updatedAt);
+            String username, String password, boolean enabled, UUID ownerAdminId, Instant createdAt,
+            Instant updatedAt) {
+        return new MonitoredDatabase(id, name, engine, jdbcUrl, username, password, enabled, ownerAdminId, createdAt,
+                updatedAt);
     }
 
     public void disable() {
@@ -86,6 +95,10 @@ public class MonitoredDatabase {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public UUID getOwnerAdminId() {
+        return ownerAdminId;
     }
 
     public Instant getCreatedAt() {

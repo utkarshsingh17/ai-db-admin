@@ -59,4 +59,9 @@ public class JpaAdminUserRepository implements AdminUserRepository {
     public long countByRoleAndEnabledTrue(AdminRole role) {
         return springDataRepository.countByRoleAndEnabledTrue(role.name());
     }
+
+    @Override
+    public Optional<AdminUser> findEarliestByRole(AdminRole role) {
+        return springDataRepository.findFirstByRoleOrderByCreatedAtAsc(role.name()).map(AdminUserMapper::toDomain);
+    }
 }

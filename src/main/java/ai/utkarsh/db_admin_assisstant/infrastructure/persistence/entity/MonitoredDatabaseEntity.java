@@ -47,6 +47,9 @@ public class MonitoredDatabaseEntity {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Column(name = "owner_admin_id", nullable = false, updatable = false)
+    private UUID ownerAdminId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -12,7 +12,7 @@ public final class MonitoredDatabaseMapper {
     public static MonitoredDatabase toDomain(MonitoredDatabaseEntity entity) {
         return MonitoredDatabase.reconstitute(new DatabaseId(entity.getId()), entity.getName(), entity.getEngine(),
                 entity.getJdbcUrl(), entity.getUsername(), entity.getPassword(), entity.isEnabled(),
-                entity.getCreatedAt(), entity.getUpdatedAt());
+                entity.getOwnerAdminId(), entity.getCreatedAt(), entity.getUpdatedAt());
     }
 
     public static void updateEntity(MonitoredDatabaseEntity entity, MonitoredDatabase domain) {
@@ -23,6 +23,7 @@ public final class MonitoredDatabaseMapper {
         entity.setUsername(domain.getUsername());
         entity.setPassword(domain.getPassword());
         entity.setEnabled(domain.isEnabled());
+        entity.setOwnerAdminId(domain.getOwnerAdminId());
         entity.setCreatedAt(domain.getCreatedAt());
         entity.setUpdatedAt(domain.getUpdatedAt());
     }

@@ -15,31 +15,36 @@ public class AdminUser {
     private String passwordHash;
     private AdminRole role;
     private boolean enabled;
+    /** Null only for the very first, self-registered bootstrap admin — every other account was
+     * either created by an admin via the Users page or self-registered under an existing admin
+     * (see RegisterAdminUserUseCase). Drives which monitored databases a DB_VIEWER can see. */
+    private final AdminUserId createdByAdminId;
     private final Instant createdAt;
     private Instant updatedAt;
 
     private AdminUser(AdminUserId id, String email, String passwordHash, AdminRole role, boolean enabled,
-            Instant createdAt, Instant updatedAt) {
+            AdminUserId createdByAdminId, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
         this.enabled = enabled;
+        this.createdByAdminId = createdByAdminId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
-    public static AdminUser create(String email, String passwordHash, AdminRole role) {
+    public static AdminUser create(String email, String passwordHash, AdminRole role, AdminUserId createdByAdminId) {
         Objects.requireNonNull(email, "email must not be null");
         Objects.requireNonNull(passwordHash, "passwordHash must not be null");
         Objects.requireNonNull(role, "role must not be null");
         Instant now = Instant.now();
-        return new AdminUser(AdminUserId.generate(), email, passwordHash, role, true, now, now);
+        return new AdminUser(AdminUserId.generate(), email, passwordHash, role, true, createdByAdminId, now, now);
     }
 
     public static AdminUser reconstitute(AdminUserId id, String email, String passwordHash, AdminRole role,
-            boolean enabled, Instant createdAt, Instant updatedAt) {
-        return new AdminUser(id, email, passwordHash, role, enabled, createdAt, updatedAt);
+            boolean enabled, AdminUserId createdByAdminId, Instant createdAt, Instant updatedAt) {
+        return new AdminUser(id, email, passwordHash, role, enabled, createdByAdminId, createdAt, updatedAt);
     }
 
     public void changeRole(AdminRole newRole) {
@@ -76,6 +81,10 @@ public class AdminUser {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public AdminUserId getCreatedByAdminId() {
+        return createdByAdminId;
     }
 
     public Instant getCreatedAt() {

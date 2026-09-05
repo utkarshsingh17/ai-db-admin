@@ -24,4 +24,8 @@ public interface AdminUserRepository {
     boolean existsAny();
 
     long countByRoleAndEnabledTrue(AdminRole role);
+
+    /** The founding admin — used to sponsor self-registered viewers (see RegisterAdminUserUseCase)
+     * and to resolve which admin's databases a viewer without any other context can see. */
+    Optional<AdminUser> findEarliestByRole(AdminRole role);
 }
