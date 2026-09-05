@@ -51,11 +51,6 @@ public class JpaAdminUserRepository implements AdminUserRepository {
     }
 
     @Override
-    public boolean existsAny() {
-        return springDataRepository.count() > 0;
-    }
-
-    @Override
     public long countByRoleAndEnabledTrue(AdminRole role) {
         return springDataRepository.countByRoleAndEnabledTrue(role.name());
     }
