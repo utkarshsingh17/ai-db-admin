@@ -5,6 +5,7 @@ import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.MonitoredDatabase;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface MonitoredDatabaseRepository {
 
@@ -15,6 +16,8 @@ public interface MonitoredDatabaseRepository {
     List<MonitoredDatabase> findAllEnabled();
 
     List<MonitoredDatabase> findAll();
+
+    List<MonitoredDatabase> findByOwnerAdminId(UUID ownerAdminId);
 
     boolean existsByName(String name);
 

@@ -36,8 +36,10 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
         if (repository.existsByEmail(command.email())) {
             throw new IllegalArgumentException("An admin user with email '" + command.email() + "' already exists");
         }
+        AdminUserId createdByAdminId = command.createdByAdminId() != null ? new AdminUserId(command.createdByAdminId())
+                : null;
         AdminUser user = AdminUser.create(command.email(), passwordEncoder.encode(command.rawPassword()),
-                command.role());
+                command.role(), createdByAdminId);
         AdminUser saved = repository.save(user);
         auditLogService.record("SYSTEM", AuditAction.ADMIN_USER_CREATED, "AdminUser",
                 saved.getId().value().toString(),
@@ -49,6 +51,10 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
      * Best-effort bootstrap check, not a hard guarantee — two concurrent registrations against an
      * empty table could theoretically both become DB_ADMIN. Acceptable here: this is a single
      * operator standing up their own instance, not a public multi-tenant signup flow.
+     *
+     * <p>A self-registered viewer is sponsored by the founding admin (the earliest-created
+     * DB_ADMIN) — there's no invite flow to pick a specific admin, and for the common case of one
+     * admin standing up the instance, this is exactly "whoever's running it".
      */
     @Override
     @Transactional
@@ -56,8 +62,11 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
         if (repository.existsByEmail(email)) {
             throw new IllegalArgumentException("An account with email '" + email + "' already exists");
         }
-        AdminRole role = repository.existsAny() ? AdminRole.DB_VIEWER : AdminRole.DB_ADMIN;
-        AdminUser user = AdminUser.create(email, passwordEncoder.encode(rawPassword), role);
+        boolean isFirstAccount = !repository.existsAny();
+        AdminRole role = isFirstAccount ? AdminRole.DB_ADMIN : AdminRole.DB_VIEWER;
+        AdminUserId createdByAdminId = isFirstAccount ? null
+                : repository.findEarliestByRole(AdminRole.DB_ADMIN).map(AdminUser::getId).orElse(null);
+        AdminUser user = AdminUser.create(email, passwordEncoder.encode(rawPassword), role, createdByAdminId);
         AdminUser saved = repository.save(user);
         auditLogService.record("SYSTEM", AuditAction.ADMIN_USER_CREATED, "AdminUser",
                 saved.getId().value().toString(),

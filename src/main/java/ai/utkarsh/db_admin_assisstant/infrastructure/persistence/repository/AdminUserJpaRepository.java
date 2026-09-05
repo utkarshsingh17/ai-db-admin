@@ -13,4 +13,6 @@ public interface AdminUserJpaRepository extends JpaRepository<AdminUserEntity, U
     boolean existsByEmail(String email);
 
     long countByRoleAndEnabledTrue(String role);
+
+    Optional<AdminUserEntity> findFirstByRoleOrderByCreatedAtAsc(String role);
 }

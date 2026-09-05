@@ -10,5 +10,7 @@ public interface MonitoredDatabaseJpaRepository extends JpaRepository<MonitoredD
 
     List<MonitoredDatabaseEntity> findByEnabledTrue();
 
+    List<MonitoredDatabaseEntity> findByOwnerAdminId(UUID ownerAdminId);
+
     boolean existsByName(String name);
 }

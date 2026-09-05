@@ -38,6 +38,9 @@ public class AdminUserEntity {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Column(name = "created_by_admin_id", updatable = false)
+    private UUID createdByAdminId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

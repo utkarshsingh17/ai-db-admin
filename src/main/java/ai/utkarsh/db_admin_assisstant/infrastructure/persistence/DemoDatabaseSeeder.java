@@ -1,5 +1,8 @@
 package ai.utkarsh.db_admin_assisstant.infrastructure.persistence;
 
+import ai.utkarsh.db_admin_assisstant.domain.adminuser.model.AdminRole;
+import ai.utkarsh.db_admin_assisstant.domain.adminuser.model.AdminUser;
+import ai.utkarsh.db_admin_assisstant.domain.adminuser.port.out.AdminUserRepository;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.model.DatabaseEngine;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.ListMonitoredDatabasesUseCase;
 import ai.utkarsh.db_admin_assisstant.domain.monitoring.port.in.RegisterMonitoredDatabaseUseCase;
@@ -8,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Dev-only: creates the ride-hailing demo database (a separate physical Postgres database on the
@@ -31,6 +36,7 @@ import java.util.Arrays;
  */
 @Component
 @Profile("dev")
+@Order(2)
 @Slf4j
 public class DemoDatabaseSeeder implements ApplicationRunner {
 
@@ -41,16 +47,19 @@ public class DemoDatabaseSeeder implements ApplicationRunner {
 
     private final RegisterMonitoredDatabaseUseCase registerUseCase;
     private final ListMonitoredDatabasesUseCase listUseCase;
+    private final AdminUserRepository adminUserRepository;
     private final String adminJdbcUrl;
     private final String adminUsername;
     private final String adminPassword;
 
     public DemoDatabaseSeeder(RegisterMonitoredDatabaseUseCase registerUseCase,
-            ListMonitoredDatabasesUseCase listUseCase, @Value("${spring.datasource.url}") String adminJdbcUrl,
+            ListMonitoredDatabasesUseCase listUseCase, AdminUserRepository adminUserRepository,
+            @Value("${spring.datasource.url}") String adminJdbcUrl,
             @Value("${spring.datasource.username}") String adminUsername,
             @Value("${spring.datasource.password}") String adminPassword) {
         this.registerUseCase = registerUseCase;
         this.listUseCase = listUseCase;
+        this.adminUserRepository = adminUserRepository;
         this.adminJdbcUrl = adminJdbcUrl;
         this.adminUsername = adminUsername;
         this.adminPassword = adminPassword;
@@ -115,9 +124,17 @@ public class DemoDatabaseSeeder implements ApplicationRunner {
         if (alreadyRegistered) {
             return;
         }
+        Optional<AdminUser> founder = adminUserRepository.findEarliestByRole(AdminRole.DB_ADMIN);
+        if (founder.isEmpty()) {
+            log.warn("No DB_ADMIN exists yet — skipping demo database registration (DevDataSeeder should have run"
+                    + " first)");
+            return;
+        }
         registerUseCase.register(new RegisterMonitoredDatabaseUseCase.RegisterDatabaseCommand(
-                MONITORED_DATABASE_NAME, DatabaseEngine.POSTGRESQL, demoJdbcUrl, adminUsername, adminPassword));
-        log.info("Registered '{}' as a monitored database", MONITORED_DATABASE_NAME);
+                MONITORED_DATABASE_NAME, DatabaseEngine.POSTGRESQL, demoJdbcUrl, adminUsername, adminPassword,
+                founder.get().getId().value()));
+        log.info("Registered '{}' as a monitored database owned by {}", MONITORED_DATABASE_NAME,
+                founder.get().getEmail());
     }
 
     /** Splits on ';' — safe here because the seed script has no semicolons inside string literals,

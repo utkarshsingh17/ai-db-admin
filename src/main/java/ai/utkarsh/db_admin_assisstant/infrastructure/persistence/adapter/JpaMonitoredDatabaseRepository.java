@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class JpaMonitoredDatabaseRepository implements MonitoredDatabaseRepository {
@@ -42,6 +43,12 @@ public class JpaMonitoredDatabaseRepository implements MonitoredDatabaseReposito
     @Override
     public List<MonitoredDatabase> findAll() {
         return springDataRepository.findAll().stream().map(MonitoredDatabaseMapper::toDomain).toList();
+    }
+
+    @Override
+    public List<MonitoredDatabase> findByOwnerAdminId(UUID ownerAdminId) {
+        return springDataRepository.findByOwnerAdminId(ownerAdminId).stream().map(MonitoredDatabaseMapper::toDomain)
+                .toList();
     }
 
     @Override
