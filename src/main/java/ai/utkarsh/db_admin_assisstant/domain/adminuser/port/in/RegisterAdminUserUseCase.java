@@ -4,10 +4,11 @@ import ai.utkarsh.db_admin_assisstant.domain.adminuser.model.AdminUser;
 
 /**
  * Public self-registration — distinct from {@link CreateAdminUserUseCase}, which requires an
- * already-authenticated DB_ADMIN and lets them pick the new user's role explicitly. Here the role
- * is decided automatically: the very first account ever created becomes DB_ADMIN (solving the
- * bootstrap problem of a fresh deployment with no admin yet), every account after that defaults to
- * DB_VIEWER — an admin can promote it via the existing role-change endpoint if needed.
+ * already-authenticated DB_ADMIN and lets them pick the new user's role explicitly. Every
+ * self-registered account becomes its own independent DB_ADMIN (solving the bootstrap problem of a
+ * fresh deployment with no admin yet, and giving every signup a genuinely separate workspace — see
+ * per-admin database ownership scoping). DB_VIEWER is only ever assigned explicitly by an admin via
+ * {@link CreateAdminUserUseCase} or the role-change endpoint, never as a self-registration default.
  */
 public interface RegisterAdminUserUseCase {
 

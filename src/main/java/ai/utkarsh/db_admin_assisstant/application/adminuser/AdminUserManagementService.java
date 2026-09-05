@@ -48,13 +48,13 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
     }
 
     /**
-     * Best-effort bootstrap check, not a hard guarantee — two concurrent registrations against an
-     * empty table could theoretically both become DB_ADMIN. Acceptable here: this is a single
-     * operator standing up their own instance, not a public multi-tenant signup flow.
-     *
-     * <p>A self-registered viewer is sponsored by the founding admin (the earliest-created
-     * DB_ADMIN) — there's no invite flow to pick a specific admin, and for the common case of one
-     * admin standing up the instance, this is exactly "whoever's running it".
+     * Every self-registered account is its own independent DB_ADMIN — not sponsored by, or
+     * subordinate to, any other admin. Combined with per-admin database ownership scoping, this is
+     * what makes self-registration produce a genuinely separate workspace: a new signup starts with
+     * zero visible databases and only ever sees what they themselves register. DB_VIEWER remains a
+     * real role, but only ever assigned explicitly by an admin (via the Users page) for someone
+     * that specific admin wants to grant read-only access to their own databases — never a
+     * self-registration default.
      */
     @Override
     @Transactional
@@ -62,11 +62,7 @@ public class AdminUserManagementService implements CreateAdminUserUseCase, ListA
         if (repository.existsByEmail(email)) {
             throw new IllegalArgumentException("An account with email '" + email + "' already exists");
         }
-        boolean isFirstAccount = !repository.existsAny();
-        AdminRole role = isFirstAccount ? AdminRole.DB_ADMIN : AdminRole.DB_VIEWER;
-        AdminUserId createdByAdminId = isFirstAccount ? null
-                : repository.findEarliestByRole(AdminRole.DB_ADMIN).map(AdminUser::getId).orElse(null);
-        AdminUser user = AdminUser.create(email, passwordEncoder.encode(rawPassword), role, createdByAdminId);
+        AdminUser user = AdminUser.create(email, passwordEncoder.encode(rawPassword), AdminRole.DB_ADMIN, null);
         AdminUser saved = repository.save(user);
         auditLogService.record("SYSTEM", AuditAction.ADMIN_USER_CREATED, "AdminUser",
                 saved.getId().value().toString(),
